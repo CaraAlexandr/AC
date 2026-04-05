@@ -1,0 +1,87 @@
+# Build images → push to Artifact Registry → deploy to GKE (namespace `lab`).
+#
+# Required GitHub secrets (Workload Identity Federation — recommended):
+#   WIF_PROVIDER   e.g. projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+#   WIF_SERVICE_ACCOUNT  e.g. github-actions@PROJECT_ID.iam.gserviceaccount.com
+#
+# Required repository variables (Settings → Secrets and variables → Actions → Variables):
+#   GCP_PROJECT_ID
+#   GCP_REGION          (Artifact Registry region, e.g. europe-west1)
+#   AR_REPO             (Artifact Registry repository id, e.g. lab-app)
+#   GKE_CLUSTER_NAME
+#   GKE_LOCATION        (cluster zone or region, e.g. europe-west1-b or europe-west1)
+#
+# IAM on the deploy service account (minimum):
+#   roles/artifactregistry.writer
+#   roles/container.developer
+
+name: Deploy to GKE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  AR_REPO: ${{ vars.AR_REPO }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
+  GKE_LOCATION: ${{ vars.GKE_LOCATION }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push images
+        env:
+          REGISTRY: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO }}
+          TAG: ${{ github.sha }}
+        run: |
+          set -euxo pipefail
+          docker build -t "${REGISTRY}/backend:${TAG}" -t "${REGISTRY}/backend:latest" ./backend
+          docker build -t "${REGISTRY}/frontend:${TAG}" -t "${REGISTRY}/frontend:latest" ./frontend
+          docker push "${REGISTRY}/backend:${TAG}"
+          docker push "${REGISTRY}/backend:latest"
+          docker push "${REGISTRY}/frontend:${TAG}"
+          docker push "${REGISTRY}/frontend:latest"
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER_NAME }}
+          location: ${{ env.GKE_LOCATION }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Apply manifests and roll out
+        env:
+          REGISTRY: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO }}
+          TAG: ${{ github.sha }}
+        run: |
+          set -euxo pipefail
+          kubectl apply -k k8s/
+          kubectl set image deployment/backend backend="${REGISTRY}/backend:${TAG}" -n lab
+          kubectl set image deployment/frontend frontend="${REGISTRY}/frontend:${TAG}" -n lab
+          kubectl rollout status deployment/backend -n lab --timeout=180s
+          kubectl rollout status deployment/frontend -n lab --timeout=180s

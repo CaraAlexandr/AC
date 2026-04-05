@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lab — Items</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e6edf3;
+      --muted: #8b9cb3;
+      --accent: #3d9cfd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 2rem clamp(1rem, 4vw, 3rem);
+    }
+    h1 { font-weight: 600; letter-spacing: -0.02em; margin: 0 0 0.25rem; }
+    p.lead { color: var(--muted); margin: 0 0 2rem; font-size: 0.95rem; }
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: flex-end;
+      margin-bottom: 2rem;
+      padding: 1.25rem;
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.8rem; color: var(--muted); }
+    input {
+      background: var(--bg);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      min-width: 200px;
+    }
+    button {
+      background: var(--accent);
+      color: #0a0e14;
+      border: none;
+      padding: 0.55rem 1.1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li {
+      padding: 1rem 1.25rem;
+      background: var(--card);
+      border-radius: 10px;
+      margin-bottom: 0.65rem;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    li strong { color: var(--accent); font-size: 0.85rem; }
+    li p { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.9rem; }
+    .err { color: #f85149; margin-bottom: 1rem; font-size: 0.9rem; }
+    .empty { color: var(--muted); font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1>Items</h1>
+  <p class="lead">Backend API is proxied under <code>/api</code> (nginx → FastAPI).</p>
+
+  <form id="f">
+    <label>Title
+      <input name="title" required maxlength="200" placeholder="e.g. Task" />
+    </label>
+    <label>Note
+      <input name="note" placeholder="optional" />
+    </label>
+    <button type="submit">Add</button>
+  </form>
+  <div id="err" class="err" hidden></div>
+  <ul id="list"></ul>
+
+  <script>
+    const list = document.getElementById("list");
+    const err = document.getElementById("err");
+
+    async function load() {
+      err.hidden = true;
+      try {
+        const r = await fetch("/api/items");
+        if (!r.ok) throw new Error(await r.text());
+        const items = await r.json();
+        list.innerHTML = items.length
+          ? items.map(i => `<li><strong>#${i.id}</strong> ${escapeHtml(i.title)}<p>${escapeHtml(i.note || "—")}</p></li>`).join("")
+          : `<li class="empty">No items yet.</li>`;
+      } catch (e) {
+        err.textContent = "Failed to load: " + e.message;
+        err.hidden = false;
+      }
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    document.getElementById("f").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const title = String(fd.get("title") || "").trim();
+      const note = String(fd.get("note") || "").trim();
+      err.hidden = true;
+      try {
+        const r = await fetch("/api/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, note }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        ev.target.reset();
+        await load();
+      } catch (e) {
+        err.textContent = "Save failed: " + e.message;
+        err.hidden = false;
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>

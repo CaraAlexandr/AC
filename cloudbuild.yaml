@@ -1,0 +1,35 @@
+# Lab CI/CD: build images; Cloud Build pushes entries in `images` automatically.
+# Set substitutions on the trigger: _REGION, _REPO (Artifact Registry repo id).
+substitutions:
+  _REGION: europe-west1
+  _REPO: lab-app
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: backend
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/backend:$SHORT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/backend:latest
+      - ./backend
+
+  - id: frontend
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/frontend:$SHORT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/frontend:latest
+      - ./frontend
+
+images:
+  - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/backend:$SHORT_SHA
+  - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/backend:latest
+  - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/frontend:$SHORT_SHA
+  - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/frontend:latest
