@@ -4,12 +4,13 @@
 #   WIF_PROVIDER   e.g. projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider
 #   WIF_SERVICE_ACCOUNT  e.g. github-actions@PROJECT_ID.iam.gserviceaccount.com
 #
-# Required repository variables (Settings → Secrets and variables → Actions → Variables):
+# Non-sensitive config — use EITHER Repository Variables OR Repository Secrets (same names):
 #   GCP_PROJECT_ID
 #   GCP_REGION          (Artifact Registry region, e.g. europe-west1)
 #   AR_REPO             (Artifact Registry repository id, e.g. lab-app)
 #   GKE_CLUSTER_NAME
 #   GKE_LOCATION        (cluster zone or region, e.g. europe-west1-b or europe-west1)
+# (Workflow uses vars.* || secrets.* so both tabs work.)
 #
 # IAM on the deploy service account (minimum):
 #   roles/artifactregistry.writer
@@ -27,11 +28,11 @@ permissions:
   id-token: write
 
 env:
-  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-  GCP_REGION: ${{ vars.GCP_REGION }}
-  AR_REPO: ${{ vars.AR_REPO }}
-  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME }}
-  GKE_LOCATION: ${{ vars.GKE_LOCATION }}
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION || secrets.GCP_REGION }}
+  AR_REPO: ${{ vars.AR_REPO || secrets.AR_REPO }}
+  GKE_CLUSTER_NAME: ${{ vars.GKE_CLUSTER_NAME || secrets.GKE_CLUSTER_NAME }}
+  GKE_LOCATION: ${{ vars.GKE_LOCATION || secrets.GKE_LOCATION }}
 
 jobs:
   deploy:
