@@ -41,11 +41,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # WIF_PROVIDER must be the full resource name from GCP Console (Provider → Resource name),
+      # one line, no spaces. If invalid_target persists, the provider does not exist or the string is wrong.
       - name: Authenticate to Google Cloud (WIF)
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          # Prefer direct vars/secrets here so project_id is set even if job env is empty
+          project_id: ${{ vars.GCP_PROJECT_ID || secrets.GCP_PROJECT_ID }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
@@ -54,6 +58,13 @@ jobs:
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      # Empty GCP_PROJECT_ID or AR_REPO produces invalid tags like ...pkg.dev//backend (double slash).
+      - name: Validate Artifact Registry env
+        run: |
+          test -n "${GCP_PROJECT_ID}" || { echo "::error::Set repository secret or variable GCP_PROJECT_ID (e.g. ac-test-492417)"; exit 1; }
+          test -n "${GCP_REGION}" || { echo "::error::Set GCP_REGION (e.g. europe-west1)"; exit 1; }
+          test -n "${AR_REPO}" || { echo "::error::Set AR_REPO to your Artifact Registry *repository id* (e.g. lab-app), not the project id"; exit 1; }
 
       - name: Build and push images
         env:
