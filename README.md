@@ -2,6 +2,8 @@
 
 Proiect minimal pentru **Laborator 4 (CI/CD pe Google Cloud)**: aplicație web cu **trei componente în containere separate**, mapate pe **poduri distincte** în Kubernetes (GKE): nginx (frontend), FastAPI (backend), PostgreSQL.
 
+**Raport (RO):** [`docs/RAPORT_LABORATOR_CI_CD.md`](docs/RAPORT_LABORATOR_CI_CD.md) — obiective, arhitectură, pași CI/CD, GCP, probleme întâlnite, acces cluster.
+
 ## Arhitectură
 
 ```text
@@ -32,6 +34,22 @@ docker compose up --build
 - UI: [http://localhost:8080](http://localhost:8080)  
 - API direct (opțional): [http://localhost:8000/docs](http://localhost:8000/docs)
 
+### Kubernetes local (kind)
+
+Același `k8s/` ca în cloud, cu cluster **kind** pe mașina ta.
+
+**Cerințe:** [Docker](https://docs.docker.com/get-docker/), [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation), `kubectl`.
+
+```bash
+./scripts/local-k8s-kind.sh
+```
+
+Scriptul pornește singur **`kubectl port-forward`** la final — deschide [http://localhost:8080](http://localhost:8080) în browser (același terminal rămâne ocupat; **Ctrl+C** oprește tunelul). Pentru doar deploy fără port-forward: `SKIP_PORT_FORWARD=1 ./scripts/local-k8s-kind.sh`.
+
+Ștergere cluster: `kind delete cluster --name lab-local`.
+
+**Alternativă — minikube:** `minikube start`, construiește imaginile în daemon-ul minikube (`eval "$(minikube docker-env)"`), apoi `docker build …`, `kubectl apply -k k8s/`, apoi `minikube service frontend -n lab` sau `kubectl port-forward` ca mai sus.
+
 ## Kubernetes (GKE)
 
 1. Creează Artifact Registry și împinge imaginile `backend` / `frontend` acolo (manual, Cloud Build sau GitHub Actions).
@@ -60,6 +78,10 @@ Repository-ul conține `cloudbuild.yaml` care construiește imaginile `backend` 
 ## CI/CD (GitHub Actions → GKE)
 
 Workflow-ul [`.github/workflows/deploy-gke.yml`](.github/workflows/deploy-gke.yml) face: **build Docker** → **push în Artifact Registry** → **`kubectl apply`** (Postgres + servicii) → **`kubectl set image`** pentru backend/frontend → **rollout**.
+
+**Ghid pas cu pas** (secrete, variabile, WIF, link-uri oficiale): [`docs/SETUP_GITHUB_GCP.md`](docs/SETUP_GITHUB_GCP.md).
+
+**Variantă „copy-paste”** (un singur lucru de înlocuit: `TAI_PROIECT_ID` / număr proiect): [`docs/GITHUB_GCP_COPY_PASTE.md`](docs/GITHUB_GCP_COPY_PASTE.md).
 
 ### Ce îți trebuie în Google Cloud
 
